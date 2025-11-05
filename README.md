@@ -20,6 +20,32 @@ CyberSentinel DLP is a production-ready, enterprise-grade Data Loss Prevention p
 - **Modern Dashboard**: Beautiful Next.js UI accessible via host IP
 - **Production-Ready**: High availability, scalability, monitoring, and audit logging
 
+## 📦 Repositories
+
+CyberSentinel DLP consists of multiple repositories for modular deployment:
+
+| Repository | Description | Link |
+|------------|-------------|------|
+| **Main Platform** | Server, Dashboard, Database, Policy Engine | [cybersentinel-dlp](https://github.com/effaaykhan/cybersentinel-dlp) |
+| **Windows Agent** | Endpoint DLP agent for Windows 10/11 | [cybersentinel-windows-agent](https://github.com/effaaykhan/cybersentinel-windows-agent) |
+| **Linux Agent** | Endpoint DLP agent for Linux systems | [cybersentinel-linux-agent](https://github.com/effaaykhan/cybersentinel-linux-agent) |
+
+### Quick Deploy Agents
+
+**Windows:**
+```bash
+git clone https://github.com/effaaykhan/cybersentinel-windows-agent.git
+cd cybersentinel-windows-agent
+python agent.py
+```
+
+**Linux:**
+```bash
+git clone https://github.com/effaaykhan/cybersentinel-linux-agent.git
+cd cybersentinel-linux-agent
+sudo ./install.sh
+```
+
 ## Architecture
 
 ```
