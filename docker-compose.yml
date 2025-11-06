@@ -67,7 +67,13 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: cybersentinel-server
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
     environment:
       - ENVIRONMENT=production
       - DEBUG=False
@@ -114,7 +120,13 @@ services:
     build:
       context: ./dashboard
       dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: cybersentinel-dashboard
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
     environment:
       - NEXT_PUBLIC_API_URL=http://${HOST_IP:-localhost}:8000/api/v1
       - NEXT_PUBLIC_APP_NAME=CyberSentinel DLP
