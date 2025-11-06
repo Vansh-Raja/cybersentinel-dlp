@@ -138,5 +138,24 @@ def get_mongodb() -> AsyncIOMotorDatabase:
     return mongodb_database
 
 
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """
+    FastAPI dependency for getting database session
+    Alias for get_postgres_session for backward compatibility
+    """
+    if not postgres_session_factory:
+        raise RuntimeError("Database not initialized")
+
+    async with postgres_session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
 # Import text for raw SQL queries
 from sqlalchemy import text

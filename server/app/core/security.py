@@ -131,9 +131,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any
     }
 
 
-async def require_role(required_role: str):
+def require_role(required_role: str):
     """
-    Dependency to check user role
+    Dependency factory to check user role
     """
     async def role_checker(current_user: Dict = Depends(get_current_user)):
         user_role = current_user.get("role", "")

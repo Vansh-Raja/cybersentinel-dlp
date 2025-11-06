@@ -87,7 +87,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme123}
-      - CORS_ORIGINS=http://localhost:3000,http://0.0.0.0:3000
+      - CORS_ORIGINS=["http://localhost:3000","http://0.0.0.0:3000"]
+      - ALLOWED_HOSTS=["*"]
     volumes:
       - ./server:/app
       - ./ml/models:/app/ml/models
