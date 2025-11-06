@@ -333,6 +333,30 @@ cd dashboard
 npm install
 ```
 
+### Alembic Migration Errors
+
+If you see "greenlet_spawn has not been called" or "password authentication failed":
+
+**See detailed fix**: [ALEMBIC_DATABASE_SETUP.md](ALEMBIC_DATABASE_SETUP.md)
+
+**Quick fix for async driver error**:
+- Already fixed in `server/alembic/env.py`
+- Migrations use `psycopg2` (sync), app uses `asyncpg` (async)
+
+**Quick fix for authentication error**:
+```bash
+# Create PostgreSQL user and database
+sudo -u postgres psql << EOF
+CREATE USER dlp_user WITH PASSWORD 'YourPassword123!';
+CREATE DATABASE cybersentinel_dlp OWNER dlp_user;
+GRANT ALL PRIVILEGES ON DATABASE cybersentinel_dlp TO dlp_user;
+\q
+EOF
+
+# Update server/.env with matching password
+# Then run: alembic upgrade head
+```
+
 ## Getting Help
 
 - **Documentation**: See [MASTER_DOCUMENTATION.md](MASTER_DOCUMENTATION.md)
