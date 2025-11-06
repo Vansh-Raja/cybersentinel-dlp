@@ -6,8 +6,10 @@ Get your enterprise DLP system running in 10 minutes!
 
 Before you begin, ensure you have:
 
-- **Docker**: Version 24.0 or higher
-- **Docker Compose**: Version 2.20 or higher
+- **Docker**: Version 24.0 or higher (for Docker deployment)
+- **Docker Compose**: Version 2.20 or higher (for Docker deployment)
+- **Node.js**: Version 18.17.0 or higher (for manual deployment or development)
+- **Python**: Version 3.9 or higher (for manual deployment)
 - **Operating System**: Linux, macOS, or Windows 10+ with WSL2
 - **RAM**: Minimum 8GB (16GB recommended)
 - **Disk Space**: At least 50GB free
@@ -306,6 +308,29 @@ docker-compose restart postgres mongodb
 # View logs
 docker-compose logs postgres
 docker-compose logs mongodb
+```
+
+### Node.js Version Errors (npm install fails)
+
+If you see errors like "Cannot find module 'node:fs'" or "Unsupported engine":
+
+```bash
+# Check Node.js version
+node --version  # Must be >=18.17.0
+
+# If version is too old, upgrade Node.js (Ubuntu/Debian):
+sudo apt remove -y nodejs npm
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Verify installation
+node --version  # Should show v18.x.x or higher
+npm --version
+
+# Clean npm cache and retry
+npm cache clean --force
+cd dashboard
+npm install
 ```
 
 ## Getting Help

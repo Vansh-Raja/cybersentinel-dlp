@@ -327,23 +327,33 @@ ALLOWED_HOSTS=["*"]
 
 For successful deployment, ensure these services are available:
 
-1. **PostgreSQL Database**
+1. **Node.js** (for manual deployment)
+   - Version: 18.17.0 or higher (18 LTS or 20 LTS recommended)
+   - Required for: Next.js 14 dashboard
+   - Verification: `node --version`
+
+2. **Python**
+   - Version: 3.9 or higher
+   - Required for: FastAPI server
+   - Verification: `python --version`
+
+3. **PostgreSQL Database**
    - Version: 15 or higher
    - Database: `cybersentinel_dlp`
    - User: `dlp_user`
    - Port: 5432
 
-2. **MongoDB Database**
+4. **MongoDB Database**
    - Version: 7 or higher
    - Database: `cybersentinel_dlp`
    - User: `dlp_user`
    - Port: 27017
 
-3. **Redis Cache**
+5. **Redis Cache**
    - Version: 7 or higher
    - Port: 6379
 
-4. **Environment Variables**
+6. **Environment Variables**
    - Copy `.env.server.example` to `server/.env`
    - Copy `.env.dashboard.example` to `dashboard/.env.local`
    - Update passwords and secrets
