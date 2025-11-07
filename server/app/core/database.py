@@ -134,7 +134,7 @@ def get_mongodb() -> AsyncIOMotorDatabase:
     """
     Get MongoDB database for dependency injection
     """
-    if not mongodb_database:
+    if mongodb_database is None:
         raise RuntimeError("MongoDB not initialized")
     return mongodb_database
 

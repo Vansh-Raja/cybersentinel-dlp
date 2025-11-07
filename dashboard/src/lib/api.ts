@@ -78,7 +78,7 @@ export const api = {
 
   // Agents
   getAgents: async (params?: any) => {
-    const { data } = await apiClient.get('/agents', { params })
+    const { data } = await apiClient.get('/agents/', { params })
     return data
   },
 
@@ -104,7 +104,7 @@ export const api = {
 
   // Events
   getEvents: async (params?: any) => {
-    const { data } = await apiClient.get('/events', { params })
+    const { data } = await apiClient.get('/events/', { params })  // Use trailing slash
     return data
   },
 

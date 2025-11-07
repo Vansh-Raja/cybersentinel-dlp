@@ -5,6 +5,7 @@ Manage DLP agents deployed on endpoints
 
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ConfigDict
@@ -27,7 +28,10 @@ class AgentBase(BaseModel):
 
 class AgentCreate(AgentBase):
     """Agent creation model"""
-    pass
+    agent_id: Optional[str] = Field(None, description="Unique agent ID (optional, auto-generated if not provided)")
+    hostname: Optional[str] = Field(None, description="Hostname")
+    os_version: Optional[str] = Field(None, description="OS version")
+    capabilities: Optional[Dict[str, Any]] = Field(None, description="Agent capabilities")
 
 
 class Agent(AgentBase):
@@ -53,6 +57,7 @@ class Agent(AgentBase):
     )
 
 
+@router.get("", response_model=List[Agent])
 @router.get("/", response_model=List[Agent])
 async def list_agents(
     status: Optional[str] = None,
@@ -82,8 +87,13 @@ async def list_agents(
 
     async for agent_doc in agents_cursor:
         # Convert MongoDB document to Agent model
-        agent_doc["agent_id"] = str(agent_doc["_id"])
-        del agent_doc["_id"]
+        # Remove MongoDB _id, keep agent_id as-is (it's the actual identifier)
+        if "_id" in agent_doc:
+            del agent_doc["_id"]
+        # Ensure agent_id exists (should always be present)
+        if "agent_id" not in agent_doc:
+            logger.warning("Agent document missing agent_id", doc_id=str(agent_doc.get("_id", "unknown")))
+            continue
         agents.append(Agent(**agent_doc))
 
     logger.info("Listed agents", count=len(agents), filters=query)
@@ -93,30 +103,60 @@ async def list_agents(
 @router.post("/", response_model=Agent, status_code=status.HTTP_201_CREATED)
 async def register_agent(
     agent: AgentCreate,
-    current_user: dict = Depends(get_current_user),
 ) -> Agent:
     """
-    Register a new DLP agent
+    Register a new DLP agent (public endpoint for agent self-registration)
     """
-    db = get_mongodb()
-    agents_collection = db["agents"]
+    try:
+        db = get_mongodb()
+        agents_collection = db["agents"]
 
-    # Create agent document
-    now = datetime.utcnow()
-    agent_doc = {
-        **agent.model_dump(),
-        "status": "online",
-        "last_seen": now,
-        "created_at": now,
-    }
+        # Use provided agent_id or generate one
+        agent_id = agent.agent_id or str(uuid.uuid4())
+        
+        now = datetime.utcnow()
+        
+        # Prepare agent document (exclude created_at from $set, use $setOnInsert for it)
+        agent_doc = {
+            **agent.model_dump(exclude={"agent_id"}),
+            "agent_id": agent_id,
+            "status": "online",
+            "last_seen": now,
+        }
+        
+        # Use upsert to insert or update in one operation
+        # $setOnInsert only sets created_at on insert, not on update
+        await agents_collection.update_one(
+            {"agent_id": agent_id},
+            {
+                "$set": agent_doc,
+                "$setOnInsert": {"created_at": now}
+            },
+            upsert=True
+        )
+        
+        # Fetch the document to return
+        result_doc = await agents_collection.find_one({"agent_id": agent_id})
+        if not result_doc:
+            # If still not found, create a minimal response
+            result_doc = agent_doc.copy()
+            result_doc["agent_id"] = agent_id
+        
+        # Remove MongoDB _id from response, keep agent_id as-is
+        if "_id" in result_doc:
+            del result_doc["_id"]
+        # Ensure agent_id is present
+        if "agent_id" not in result_doc:
+            result_doc["agent_id"] = agent_id
 
-    # Insert into database
-    result = await agents_collection.insert_one(agent_doc)
-    agent_doc["agent_id"] = str(result.inserted_id)
-    del agent_doc["_id"]
-
-    logger.info("Agent registered", agent_id=agent_doc["agent_id"], name=agent.name)
-    return Agent(**agent_doc)
+        logger.info("Agent registered", agent_id=agent_id, name=agent.name)
+        return Agent(**result_doc)
+    except Exception as e:
+        logger.error("Error registering agent", error=str(e), agent_id=getattr(agent, 'agent_id', None))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to register agent: {str(e)}"
+        )
 
 
 @router.get("/{agent_id}", response_model=Agent)
@@ -130,8 +170,8 @@ async def get_agent(
     db = get_mongodb()
     agents_collection = db["agents"]
 
-    from bson import ObjectId
-    agent_doc = await agents_collection.find_one({"_id": ObjectId(agent_id)})
+    # Query by agent_id field, not MongoDB _id
+    agent_doc = await agents_collection.find_one({"agent_id": agent_id})
 
     if not agent_doc:
         raise HTTPException(
@@ -139,26 +179,27 @@ async def get_agent(
             detail=f"Agent {agent_id} not found"
         )
 
-    agent_doc["agent_id"] = str(agent_doc["_id"])
-    del agent_doc["_id"]
+    # Remove MongoDB _id from response, keep agent_id as-is
+    if "_id" in agent_doc:
+        del agent_doc["_id"]
 
     return Agent(**agent_doc)
 
 
 @router.put("/{agent_id}/heartbeat")
+@router.post("/{agent_id}/heartbeat")
 async def agent_heartbeat(
     agent_id: str,
-    current_user: dict = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
-    Update agent heartbeat (called by agents periodically)
+    Update agent heartbeat (called by agents periodically) - public endpoint
     """
     db = get_mongodb()
     agents_collection = db["agents"]
 
-    from bson import ObjectId
+    # Use agent_id field instead of MongoDB _id
     result = await agents_collection.update_one(
-        {"_id": ObjectId(agent_id)},
+        {"agent_id": agent_id},
         {
             "$set": {
                 "last_seen": datetime.utcnow(),
@@ -188,8 +229,8 @@ async def delete_agent(
     db = get_mongodb()
     agents_collection = db["agents"]
 
-    from bson import ObjectId
-    result = await agents_collection.delete_one({"_id": ObjectId(agent_id)})
+    # Delete by agent_id field, not MongoDB _id
+    result = await agents_collection.delete_one({"agent_id": agent_id})
 
     if result.deleted_count == 0:
         raise HTTPException(
