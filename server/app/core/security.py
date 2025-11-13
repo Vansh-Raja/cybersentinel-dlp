@@ -18,8 +18,8 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.cache import redis_client
 from app.services.blacklist_service import TokenBlacklistService
-from app.services.user_service import UserService
 from app.models.user import User
+# UserService imported lazily to avoid circular imports
 
 logger = structlog.get_logger()
 
@@ -126,6 +126,9 @@ async def get_current_user(
     """
     Get current user from JWT token
     """
+    # Lazy import to avoid circular dependency
+    from app.services.user_service import UserService
+
     blacklist_service = TokenBlacklistService(redis_client)
     if await blacklist_service.is_blacklisted(token):
         raise HTTPException(
@@ -163,6 +166,9 @@ async def optional_auth(
 
     Returns user dict if authenticated, None otherwise
     """
+    # Lazy import to avoid circular dependency
+    from app.services.user_service import UserService
+
     if not token:
         return None
 
