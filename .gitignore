@@ -10,121 +10,207 @@ dist/
 downloads/
 eggs/
 .eggs/
+lib/
 lib64/
 parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+
+# Virtual Environments
 venv/
-env/
 ENV/
-
-# Python lib directories (but not JavaScript src/lib)
-/server/lib/
-/ml/lib/
-
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-.next/
-out/
-.vercel
-
-# Environment
+env/
+.venv
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-*.env
+.venv/
+env.bak/
+venv.bak/
 
-# IDE
+# IDEs and Editors
 .vscode/
 .idea/
-
-# Temporary files
-*.tmp.*
-*.tmp
-.claude/settings.local.json.tmp.*
-
-# Test/Debug scripts (keep verify_github_ready.ps1)
-check_*.sh
-check_*.ps1
-test_*.ps1
-verify_agent*.ps1
-verify_complete.ps1
-quick_*.ps1
-final_*.ps1
-manual_*.ps1
-restart_*.sh
-FIX_*.sh
-
-# Unwanted files
-nul
-openapi.json
-
-# Development documentation (session notes)
-.development-docs/
 *.swp
 *.swo
 *~
-
-# OS
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
 .DS_Store
-Thumbs.db
 
-# Logs
-logs/
-*.log
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
 
-# Secrets
-secrets/
-*.pem
-*.key
-*.crt
+# Logs
+*.log
+logs/
+*.log.*
 
-# ML Models
-ml/models/*.pkl
-ml/models/*.h5
-ml/models/*.pt
-ml/models/*.onnx
-
-# Temporary
-tmp/
-temp/
-*.tmp
-
-# Coverage
-.coverage
-htmlcov/
-.pytest_cache/
+# Environment Variables
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
 
 # Docker
 docker-compose.override.yml
+.dockerignore
 
-# Quarantine & Backup Directories
-quarantine/
-/var/quarantine/
-/backup/
-/var/log/cybersentinel/
+# Node.js (for dashboard)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+pids
+*.pid
+*.seed
+*.pid.lock
+.npm
+.yarn-integrity
+.cache
 
-# Project Generated Files
-PROJECT_TREE.txt
-PROJECT_FILES_LIST.txt
-nul
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
 
-# Keep important template files
-!.env.example
-!.gitkeep
+# Testing
+coverage/
+.nyc_output/
+*.cover
+*.coverage
+.hypothesis/
+htmlcov/
+.tox/
+.nox/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.tmp/
+temp/
+tmp/
+
+# Security & Secrets
+*.pem
+*.key
+*.cert
+*.crt
+*.csr
+*.p12
+*.pfx
+secrets/
+credentials/
+.secrets/
+
+# ML Models
+*.h5
+*.pkl
+*.joblib
+*.model
+models/checkpoints/
+*.ckpt
+*.pth
+*.pt
+
+# Data files
+*.csv
+*.xlsx
+*.xls
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+*.parquet
+*.feather
+
+# Documentation builds
+docs/_build/
+site/
+
+# Project specific
+openapi.json
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+celerybeat-schedule
+celerybeat.pid
+
+# Ignore all markdown temporary files
+*.md.tmp.*
+
+# Ignore test scripts and verification files
+test_*.ps1
+verify_*.ps1
+check_*.ps1
+quick_test.ps1
+final_test.ps1
+manual_*.ps1
+*.sh
+!docker-entrypoint.sh
+
+# Ignore analysis and status files
+*_ANALYSIS.md
+*_STATUS*.md
+*_FIX.md
+QUICK_FIX_COMMANDS.txt
+ARCHITECTURE.md
+CURRENT_STATUS*.md
+DASHBOARD_FIX.md
+INSTALLATION_COMPLETE.md
+FIX_*.sh
+
+# Ignore backup directories
+backend/
+cybersentinel-dlp-agent-windows/
+cybersentinel-dlp-server/
+
+# Redis dumps
+dump.rdb
+
+# Local settings
+.claude/settings.local.json.tmp.*
+
+# Git merge files
+*.orig

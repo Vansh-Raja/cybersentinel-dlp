@@ -119,12 +119,14 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = Field(default="json")
     LOG_FILE: Optional[str] = Field(default=None)
 
-    # Email Configuration (for alerts)
+    # Email Configuration (for alerts and reports)
     SMTP_HOST: str = Field(default="smtp.gmail.com")
     SMTP_PORT: int = Field(default=587)
+    SMTP_TLS: bool = Field(default=True)
     SMTP_USER: Optional[str] = Field(default=None)
     SMTP_PASSWORD: Optional[str] = Field(default=None)
     SMTP_FROM: str = Field(default="dlp@cybersentinel.local")
+    SMTP_FROM_EMAIL: str = Field(default="dlp@cybersentinel.local")
 
     # Wazuh Integration
     WAZUH_HOST: str = Field(default="localhost")

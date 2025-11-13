@@ -1,0 +1,148 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  update-python-dependencies:
+    name: Update Python Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-tools
+        run: pip install pip-tools
+
+      - name: Check for updates
+        working-directory: ./server
+        run: |
+          pip-compile requirements.txt --upgrade --output-file requirements.new.txt
+          if ! diff -q requirements.txt requirements.new.txt > /dev/null; then
+            echo "UPDATES_AVAILABLE=true" >> $GITHUB_ENV
+            mv requirements.new.txt requirements.txt
+          else
+            echo "UPDATES_AVAILABLE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Create Pull Request
+        if: env.UPDATES_AVAILABLE == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update Python dependencies'
+          title: 'chore: Update Python Dependencies'
+          body: |
+            Automated dependency update from pip-compile.
+
+            Please review the changes and ensure all tests pass before merging.
+
+            Run the following to verify:
+            ```bash
+            cd server
+            pip install -r requirements.txt
+            pytest tests/
+            ```
+          branch: dependency-update/python
+          delete-branch: true
+          labels: dependencies, automated
+
+  update-npm-dependencies:
+    name: Update NPM Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check for updates
+        working-directory: ./dashboard
+        run: |
+          npm outdated --json > outdated.json || true
+          if [ -s outdated.json ]; then
+            echo "UPDATES_AVAILABLE=true" >> $GITHUB_ENV
+            npm update --save
+          else
+            echo "UPDATES_AVAILABLE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Create Pull Request
+        if: env.UPDATES_AVAILABLE == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update NPM dependencies'
+          title: 'chore: Update NPM Dependencies'
+          body: |
+            Automated dependency update from npm update.
+
+            Please review the changes and ensure the dashboard builds successfully.
+
+            Run the following to verify:
+            ```bash
+            cd dashboard
+            npm ci
+            npm run build
+            ```
+          branch: dependency-update/npm
+          delete-branch: true
+          labels: dependencies, automated
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run pip-audit
+        working-directory: ./server
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt --format json > pip-audit.json || true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run npm audit
+        working-directory: ./dashboard
+        run: |
+          npm audit --json > npm-audit.json || true
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-results
+          path: |
+            server/pip-audit.json
+            dashboard/npm-audit.json
+          retention-days: 90
+
+      - name: Check for critical vulnerabilities
+        run: |
+          if grep -q '"severity":"critical"' server/pip-audit.json dashboard/npm-audit.json; then
+            echo "Critical vulnerabilities found! Please review immediately."
+            exit 1
+          fi

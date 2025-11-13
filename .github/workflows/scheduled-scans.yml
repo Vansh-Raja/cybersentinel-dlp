@@ -1,0 +1,166 @@
+name: Scheduled Security Scans
+
+on:
+  schedule:
+    # Run every day at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  vulnerability-scan:
+    name: Vulnerability Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
+        continue-on-error: true
+
+  code-quality-scan:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install tools
+        run: |
+          pip install radon bandit pylint
+
+      - name: Run Radon (complexity analysis)
+        working-directory: ./server
+        run: |
+          radon cc app/ -a -s --json > radon-cc.json
+          radon mi app/ -s --json > radon-mi.json
+        continue-on-error: true
+
+      - name: Run Bandit (security)
+        working-directory: ./server
+        run: |
+          bandit -r app/ -f json -o bandit.json || true
+
+      - name: Run Pylint (code quality)
+        working-directory: ./server
+        run: |
+          pylint app/ --output-format=json > pylint.json || true
+
+      - name: Upload analysis results
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-results
+          path: |
+            server/radon-cc.json
+            server/radon-mi.json
+            server/bandit.json
+            server/pylint.json
+          retention-days: 90
+
+  docker-image-scan:
+    name: Docker Image Scanning
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service: [server, dashboard]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          file: ./${{ matrix.service }}/Dockerfile
+          push: false
+          load: true
+          tags: dlp-${{ matrix.service }}:scan
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: dlp-${{ matrix.service }}:scan
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}.sarif'
+        continue-on-error: true
+
+  license-compliance:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-licenses
+        run: pip install pip-licenses
+
+      - name: Check Python licenses
+        working-directory: ./server
+        run: |
+          pip install -r requirements.txt
+          pip-licenses --format=json --output-file=licenses-python.json
+          pip-licenses --format=markdown --output-file=licenses-python.md
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check NPM licenses
+        working-directory: ./dashboard
+        run: |
+          npm ci
+          npx license-checker --json --out licenses-npm.json
+          npx license-checker --markdown --out licenses-npm.md
+
+      - name: Upload license reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-reports
+          path: |
+            server/licenses-python.*
+            dashboard/licenses-npm.*
+          retention-days: 90
+
+      - name: Check for prohibited licenses
+        run: |
+          # Add checks for GPL, AGPL, or other prohibited licenses
+          if grep -iE '(GPL|AGPL)' server/licenses-python.json dashboard/licenses-npm.json; then
+            echo "WARNING: Potentially problematic licenses found!"
+            echo "Please review the license reports."
+          fi

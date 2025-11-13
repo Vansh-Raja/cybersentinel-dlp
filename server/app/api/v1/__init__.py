@@ -5,7 +5,7 @@ Main API router aggregating all endpoints
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, events, policies, users, dashboard, alerts, agents, classification
+from app.api.v1 import auth, events, policies, users, dashboard, alerts, agents, classification, analytics, export, siem
 
 api_router = APIRouter()
 
@@ -26,3 +26,6 @@ api_router.include_router(classification.router, prefix="/classification", tags=
 api_router.include_router(policies.router, prefix="/policies", tags=["Policies"])
 api_router.include_router(alerts.router, prefix="/alerts", tags=["Alerts"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
+api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
+api_router.include_router(export.router, prefix="/export", tags=["Export"])
+api_router.include_router(siem.router, prefix="/siem", tags=["SIEM"])

@@ -1,0 +1,500 @@
+# PCI-DSS (Payment Card Industry Data Security Standard) Compliance Policy
+# Version 4.0 - Requirements 3 & 4 (Cardholder Data Protection)
+#
+# This policy template helps organizations that store, process, or transmit
+# cardholder data comply with PCI-DSS requirements.
+#
+# Scope: All cardholder data and sensitive authentication data
+# - Primary Account Number (PAN) - 13-19 digits
+# - Cardholder name
+# - Expiration date
+# - Service code
+# - Sensitive authentication data (CVV, PIN, magnetic stripe)
+#
+# Deployment: Copy this file to /etc/cybersentinel/policies/ and customize as needed
+
+policy:
+  id: "pci-dss-cardholder-data-001"
+  name: "PCI-DSS Cardholder Data Protection"
+  description: "Protect payment card data per PCI-DSS Requirements 3 & 4"
+  version: "4.0"
+  enabled: true
+  priority: 10
+  compliance:
+    - "PCI-DSS"
+  regulations:
+    - "PCI-DSS Requirement 3 - Protect Stored Cardholder Data"
+    - "PCI-DSS Requirement 4 - Protect Cardholder Data with Strong Cryptography"
+    - "PCI-DSS Requirement 10 - Log and Monitor All Access"
+    - "PCI-DSS Requirement 12 - Support Information Security"
+  severity: "critical"
+  tags:
+    - "pci-dss"
+    - "payment-card"
+    - "cardholder-data"
+    - "financial"
+
+rules:
+  # Rule 1: Detect Primary Account Number (PAN)
+  - id: "pci-rule-001"
+    name: "Detect Credit Card Numbers (PAN)"
+    description: "Identify Primary Account Numbers with Luhn validation"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "classification.confidence"
+        operator: "greater_than"
+        value: 0.9
+      - field: "classification.luhn_valid"
+        operator: "equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "PCI-DSS PAN Detected"
+        description: "Primary Account Number detected - immediate action required"
+        metadata:
+          regulation: "PCI-DSS Requirement 3.2"
+          data_type: "PAN"
+          pci_requirement: "3.2.1"
+      - type: "block"
+        message: "Credit card transmission blocked - PCI-DSS violation"
+      - type: "redact"
+        method: "mask_except_last4"  # Show only last 4 digits
+        redaction_char: "*"
+      - type: "audit"
+        log_level: "detailed"
+        retention_days: 365  # Minimum 1 year for PCI-DSS
+        mask_pan: true  # Never log full PAN
+      - type: "notify"
+        channel: "urgent"
+        recipients:
+          - "security@company.com"
+          - "pci-compliance@company.com"
+        priority: "immediate"
+
+  # Rule 2: Detect Sensitive Authentication Data (SAD)
+  - id: "pci-rule-002"
+    name: "Detect Sensitive Authentication Data"
+    description: "Block CVV, PIN, magnetic stripe data (NEVER store these)"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "in"
+        value:
+          - "cvv"
+          - "cvv2"
+          - "cvc"
+          - "cid"
+          - "pin"
+          - "magnetic_stripe"
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "PCI-DSS SAD Detected - PROHIBITED"
+        description: "Sensitive Authentication Data detected - storage PROHIBITED"
+        metadata:
+          regulation: "PCI-DSS Requirement 3.2.2"
+          violation: "SAD storage prohibited"
+          data_types:
+            - "Full magnetic stripe data"
+            - "CAV2/CVC2/CVV2/CID"
+            - "PIN/PIN Block"
+      - type: "block"
+        message: "CRITICAL: Sensitive auth data detected - storage PROHIBITED by PCI-DSS 3.2.2"
+      - type: "delete"
+        immediate: true
+        secure_wipe: true
+      - type: "escalate"
+        to:
+          - "ciso@company.com"
+          - "pci-qsa@company.com"
+        priority: "critical"
+      - type: "audit"
+        log_level: "forensic"
+        include_context: true
+        metadata:
+          compliance_violation: "PCI-DSS 3.2.2"
+
+  # Rule 3: Unencrypted PAN Transmission (Requirement 4)
+  - id: "pci-rule-003"
+    name: "Require Encryption for PAN Transmission"
+    description: "Ensure PAN is encrypted during transmission over open networks"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "transmission.encrypted"
+        operator: "equals"
+        value: false
+      - field: "network.type"
+        operator: "in"
+        value: ["public", "internet", "wireless"]
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "PCI-DSS Unencrypted PAN Transmission"
+        description: "PAN transmitted without encryption over open network"
+        metadata:
+          regulation: "PCI-DSS Requirement 4.2"
+          violation: "Unencrypted PAN transmission"
+          required_protocols:
+            - "TLS 1.2 or higher"
+            - "IPsec"
+            - "SSH"
+      - type: "block"
+        message: "Unencrypted PAN transmission blocked - use TLS 1.2+ or IPsec"
+      - type: "quarantine"
+        location: "/quarantine/pci/unencrypted"
+        encrypt: true
+        algorithm: "AES-256"
+
+  # Rule 4: PAN in Email (Requirement 4.2)
+  - id: "pci-rule-004"
+    name: "Block PAN in Email"
+    description: "Prevent PAN transmission via end-user messaging (email, chat)"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "event.type"
+        operator: "in"
+        value: ["email", "chat", "message"]
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "PCI-DSS PAN in Email Blocked"
+        description: "PAN detected in email - explicitly prohibited"
+        metadata:
+          regulation: "PCI-DSS Requirement 4.2"
+          violation: "PAN in end-user messaging"
+      - type: "block"
+        message: "Credit card numbers cannot be sent via email per PCI-DSS 4.2"
+      - type: "redact"
+        method: "full"
+      - type: "notify"
+        channel: "security"
+        recipients:
+          - "security@company.com"
+        template: "pci_email_violation"
+
+  # Rule 5: PAN Storage Requirements (Requirement 3.4)
+  - id: "pci-rule-005"
+    name: "PAN Storage Protection"
+    description: "Ensure stored PAN is rendered unreadable"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "event.type"
+        operator: "in"
+        value: ["file", "upload", "storage"]
+      - field: "file.encrypted"
+        operator: "not_equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "PCI-DSS Unencrypted PAN Storage"
+        description: "PAN stored without encryption - requirement 3.4 violation"
+        metadata:
+          regulation: "PCI-DSS Requirement 3.4"
+          acceptable_methods:
+            - "Strong cryptography with key management"
+            - "Truncation (not hashing/masking alone)"
+            - "Index tokens and pads (secure storage required)"
+            - "Strong one-way hash based on cryptography"
+      - type: "encrypt"
+        algorithm: "AES-256"
+        key_management: "pci_compliant_kms"
+      - type: "audit"
+        log_level: "detailed"
+        metadata:
+          action: "Automatic encryption applied"
+
+  # Rule 6: PAN Retention Policy (Requirement 3.1)
+  - id: "pci-rule-006"
+    name: "PAN Retention Compliance"
+    description: "Monitor and enforce cardholder data retention limits"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "file.age_days"
+        operator: "greater_than"
+        value: 90  # Customize based on your retention policy
+      - field: "retention.business_justification"
+        operator: "not_exists"
+    actions:
+      - type: "alert"
+        severity: "high"
+        title: "PCI-DSS Retention Policy Review"
+        description: "PAN data exceeds retention period - review required"
+        metadata:
+          regulation: "PCI-DSS Requirement 3.1"
+          requirement: "Limit cardholder data storage"
+      - type: "flag_for_review"
+        review_type: "retention_compliance"
+        reviewer_role: "data_retention_officer"
+      - type: "tag"
+        tags:
+          - "retention_review_required"
+          - "potential_deletion_candidate"
+
+  # Rule 7: Test/Development Data (Requirement 6.4.3)
+  - id: "pci-rule-007"
+    name: "No Real PAN in Test/Development"
+    description: "Prevent real PAN usage in non-production environments"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "environment"
+        operator: "in"
+        value: ["test", "development", "staging", "qa"]
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "PCI-DSS Real PAN in Non-Production"
+        description: "Real PAN detected in test/dev environment - PROHIBITED"
+        metadata:
+          regulation: "PCI-DSS Requirement 6.4.3"
+          violation: "Real PAN in non-production"
+          alternative: "Use test card numbers provided by payment brands"
+      - type: "block"
+        message: "Real credit card data prohibited in test/dev - use test card numbers"
+      - type: "delete"
+        immediate: true
+      - type: "escalate"
+        to:
+          - "dev-manager@company.com"
+          - "security@company.com"
+
+  # Rule 8: Access Control Monitoring (Requirement 7 & 8)
+  - id: "pci-rule-008"
+    name: "Monitor PAN Access Controls"
+    description: "Track all PAN access for role-based access control"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "user.role"
+        operator: "not_in"
+        value:
+          - "payment_processor"
+          - "authorized_payment_staff"
+          - "pci_admin"
+    actions:
+      - type: "alert"
+        severity: "high"
+        title: "PCI-DSS Unauthorized PAN Access Attempt"
+        description: "PAN accessed by user without payment processing privileges"
+        metadata:
+          regulation: "PCI-DSS Requirement 7.1 & 8.1"
+          requirement: "Limit access to system components and cardholder data"
+      - type: "block"
+        message: "Access denied - payment data access requires authorization"
+      - type: "audit"
+        log_level: "forensic"
+        include_metadata:
+          - "user.id"
+          - "user.role"
+          - "access.timestamp"
+          - "access.location"
+          - "access.device"
+
+  # Rule 9: Audit Log Requirements (Requirement 10)
+  - id: "pci-rule-009"
+    name: "Comprehensive PAN Audit Logging"
+    description: "Log all access to cardholder data per Requirement 10"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "event.type"
+        operator: "in"
+        value: ["access", "view", "modify", "delete", "create"]
+    actions:
+      - type: "audit"
+        log_level: "detailed"
+        retention_days: 365  # Minimum 1 year, 3+ months immediately available
+        include_metadata:
+          - "user.id"
+          - "event.type"
+          - "event.timestamp"
+          - "event.status"
+          - "data.accessed"
+          - "system.component"
+          - "origination.ip"
+          - "origination.location"
+        log_elements_required:
+          - "User identification"
+          - "Type of event"
+          - "Date and time"
+          - "Success or failure"
+          - "Origination of event"
+          - "Identity of affected data/resource"
+        tamper_protection: true
+      - type: "tag"
+        tags:
+          - "pci_audit"
+          - "cardholder_data_access"
+
+  # Rule 10: Wireless Transmission Protection (Requirement 4.1)
+  - id: "pci-rule-010"
+    name: "Secure Wireless PAN Transmission"
+    description: "Ensure PAN transmitted over wireless uses strong encryption"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "network.type"
+        operator: "equals"
+        value: "wireless"
+      - field: "transmission.protocol"
+        operator: "not_in"
+        value: ["WPA2", "WPA3", "TLS1.2", "TLS1.3"]
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "PCI-DSS Weak Wireless Encryption"
+        description: "PAN transmitted over wireless with weak/no encryption"
+        metadata:
+          regulation: "PCI-DSS Requirement 4.1.1"
+          required_protocols: "WPA2/WPA3 or TLS 1.2+"
+      - type: "block"
+        message: "Wireless transmission requires WPA2/WPA3 or TLS 1.2+"
+
+  # Rule 11: Vendor/Third-Party Access (Requirement 12.8)
+  - id: "pci-rule-011"
+    name: "Third-Party Service Provider Monitoring"
+    description: "Monitor PAN access by service providers"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "user.type"
+        operator: "equals"
+        value: "third_party"
+      - field: "service_provider.pci_compliant"
+        operator: "not_equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "PCI-DSS Third-Party Access Without Compliance"
+        description: "PAN accessed by non-PCI-compliant service provider"
+        metadata:
+          regulation: "PCI-DSS Requirement 12.8"
+          requirement: "Service provider PCI-DSS compliance"
+      - type: "block"
+        message: "Third-party access requires PCI-DSS compliance verification"
+
+  # Rule 12: PAN Disclosure Tracking (Requirement 3.2)
+  - id: "pci-rule-012"
+    name: "Track All PAN Disclosures"
+    description: "Monitor and log all cardholder data disclosures"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "credit_card"
+      - field: "destination.internal"
+        operator: "equals"
+        value: false
+    actions:
+      - type: "track"
+        tracking_id: "pan_disclosure"
+        metadata:
+          destination: "{{destination.entity}}"
+          purpose: "{{disclosure.purpose}}"
+          authorization: "{{disclosure.authorized_by}}"
+      - type: "audit"
+        log_level: "detailed"
+        include_full_context: true
+      - type: "notify"
+        channel: "compliance"
+        recipients:
+          - "pci-compliance@company.com"
+
+metadata:
+  template: true
+  template_version: "4.0"
+  last_updated: "2025-01-13"
+  pci_dss_version: "4.0"
+  maintainer: "PCI Compliance Team"
+  documentation: "https://www.pcisecuritystandards.org/"
+
+  customization_notes: |
+    To customize this template for your organization:
+    1. Update notification recipients
+    2. Set appropriate retention periods (minimum 1 year, 3 months online)
+    3. Define authorized roles for PAN access
+    4. Configure encryption settings (AES-256 minimum)
+    5. Integrate with your key management system
+    6. Set up quarantine storage with access controls
+    7. Configure service provider compliance tracking
+    8. Adjust retention policy based on business needs
+    9. Enable/disable rules based on your card data flow
+    10. Test thoroughly before production
+
+  deployment_checklist:
+    - "✓ Complete PCI-DSS Self-Assessment Questionnaire (SAQ)"
+    - "✓ Identify all cardholder data flows"
+    - "✓ Update recipient email addresses"
+    - "✓ Configure AES-256 encryption"
+    - "✓ Implement key management system"
+    - "✓ Set up secure audit log storage"
+    - "✓ Configure access control lists"
+    - "✓ Enable file integrity monitoring"
+    - "✓ Test incident response procedures"
+    - "✓ Train staff on PCI-DSS requirements"
+    - "✓ Schedule quarterly network scans (ASV)"
+    - "✓ Schedule annual on-site assessment (if Level 1)"
+    - "✓ Review and test quarterly"
+
+  merchant_levels:
+    level1: ">6 million transactions/year - Annual on-site assessment required"
+    level2: "1-6 million transactions/year - Annual SAQ + quarterly network scan"
+    level3: "20,000-1 million e-commerce transactions/year - Annual SAQ + scan"
+    level4: "<20,000 e-commerce or <1 million total - Annual SAQ + scan"
+
+  pci_requirements_summary:
+    req1: "Install and maintain network security controls"
+    req2: "Apply secure configurations to all system components"
+    req3: "Protect stored account data"
+    req4: "Protect cardholder data with strong cryptography during transmission"
+    req5: "Protect all systems and networks from malicious software"
+    req6: "Develop and maintain secure systems and software"
+    req7: "Restrict access to system components and cardholder data"
+    req8: "Identify users and authenticate access to system components"
+    req9: "Restrict physical access to cardholder data"
+    req10: "Log and monitor all access to system components and cardholder data"
+    req11: "Test security of systems and networks regularly"
+    req12: "Support information security with organizational policies and programs"
+
+  test_card_numbers:
+    visa: "4111111111111111"
+    mastercard: "5555555555554444"
+    amex: "378282246310005"
+    discover: "6011111111111117"
+    note: "Use these for testing - they pass Luhn but are not real accounts"
+
+  penalties:
+    violation_fines: "$5,000 - $100,000 per month"
+    assessment_costs: "Cost of forensic investigation"
+    card_reissuance: "Cost of reissuing compromised cards"
+    brand_damage: "Reputation and customer trust loss"
+    legal_liability: "Lawsuits from affected customers"
+    loss_of_privileges: "Loss of ability to process cards"

@@ -62,7 +62,8 @@
       "Bash(nssm status:*)",
       "Bash(timeout /t 5)",
       "Bash(nssm start:*)",
-      "Bash(timeout /t 10)"
+      "Bash(timeout /t 10)",
+      "Bash(PROJECT_COMPLETE.md)"
     ],
     "deny": [],
     "ask": []

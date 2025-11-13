@@ -1,0 +1,316 @@
+# GDPR (General Data Protection Regulation) Compliance Policy
+# Articles 4, 5, 6, 32, 33, 34 - Personal Data Protection
+#
+# This policy template helps organizations comply with GDPR requirements
+# by detecting, monitoring, and protecting personal data of EU residents.
+#
+# Scope: All personal data as defined by GDPR Article 4(1)
+# - Name, email, phone, address, IP address
+# - National identification numbers (SSN, passport, etc.)
+# - Online identifiers (cookies, device IDs)
+# - Health data, genetic data, biometric data
+# - Financial information, credit card data
+#
+# Deployment: Copy this file to /etc/cybersentinel/policies/ and customize as needed
+
+policy:
+  id: "gdpr-compliance-001"
+  name: "GDPR Personal Data Protection"
+  description: "Detect and protect personal data under EU GDPR regulations"
+  version: "1.0"
+  enabled: true
+  priority: 10
+  compliance:
+    - "GDPR"
+  regulations:
+    - "GDPR Article 4 - Personal Data Definition"
+    - "GDPR Article 5 - Principles of Processing"
+    - "GDPR Article 6 - Lawfulness of Processing"
+    - "GDPR Article 32 - Security of Processing"
+  severity: "high"
+  tags:
+    - "gdpr"
+    - "privacy"
+    - "eu"
+    - "personal-data"
+
+rules:
+  # Rule 1: Detect GDPR Personal Identifiers
+  - id: "gdpr-rule-001"
+    name: "Detect Personal Identifiers"
+    description: "Identify personal data (email, phone, name, address)"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "in"
+        value:
+          - "email"
+          - "phone"
+          - "ssn"
+          - "ip_address"
+          - "drivers_license"
+    actions:
+      - type: "alert"
+        severity: "medium"
+        title: "GDPR Personal Data Detected"
+        description: "Personal identifier detected in transmission"
+        metadata:
+          regulation: "GDPR Article 4(1)"
+          data_category: "personal_identifier"
+      - type: "audit"
+        log_level: "detailed"
+        retention_days: 2555  # 7 years for GDPR compliance
+        include_content: false  # Don't log actual PII
+      - type: "notify"
+        channel: "email"
+        recipients:
+          - "dpo@company.com"  # Data Protection Officer
+          - "compliance@company.com"
+        template: "gdpr_personal_data_alert"
+
+  # Rule 2: Detect Special Categories of Personal Data (Article 9)
+  - id: "gdpr-rule-002"
+    name: "Detect Special Category Data"
+    description: "Identify sensitive personal data requiring enhanced protection"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "in"
+        value:
+          - "medical_record"
+          - "health_insurance_id"
+          - "genetic_data"
+          - "biometric_data"
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "GDPR Special Category Data Detected"
+        description: "Sensitive personal data (Article 9) detected"
+        metadata:
+          regulation: "GDPR Article 9"
+          data_category: "special_category"
+      - type: "block"
+        message: "Special category personal data transfer blocked - requires explicit consent"
+      - type: "quarantine"
+        location: "/quarantine/gdpr/special"
+        encrypt: true
+      - type: "notify"
+        channel: "urgent"
+        recipients:
+          - "dpo@company.com"
+          - "security@company.com"
+
+  # Rule 3: Cross-Border Data Transfer (Article 44-50)
+  - id: "gdpr-rule-003"
+    name: "Monitor Cross-Border Transfers"
+    description: "Detect data transfers outside EU/EEA requiring safeguards"
+    enabled: true
+    conditions:
+      - field: "destination.country"
+        operator: "not_in"
+        value:
+          - "EU"
+          - "EEA"
+          - "AT"  # Austria
+          - "BE"  # Belgium
+          - "BG"  # Bulgaria
+          - "HR"  # Croatia
+          - "CY"  # Cyprus
+          - "CZ"  # Czech Republic
+          - "DK"  # Denmark
+          - "EE"  # Estonia
+          - "FI"  # Finland
+          - "FR"  # France
+          - "DE"  # Germany
+          - "GR"  # Greece
+          - "HU"  # Hungary
+          - "IE"  # Ireland
+          - "IT"  # Italy
+          - "LV"  # Latvia
+          - "LT"  # Lithuania
+          - "LU"  # Luxembourg
+          - "MT"  # Malta
+          - "NL"  # Netherlands
+          - "PL"  # Poland
+          - "PT"  # Portugal
+          - "RO"  # Romania
+          - "SK"  # Slovakia
+          - "SI"  # Slovenia
+          - "ES"  # Spain
+          - "SE"  # Sweden
+          - "IS"  # Iceland
+          - "LI"  # Liechtenstein
+          - "NO"  # Norway
+      - field: "classification"
+        operator: "exists"
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "GDPR Cross-Border Transfer Detected"
+        description: "Personal data transfer outside EU/EEA"
+        metadata:
+          regulation: "GDPR Chapter V (Articles 44-50)"
+          requires: "Standard Contractual Clauses or Adequacy Decision"
+      - type: "block"
+        message: "Cross-border data transfer requires Data Protection Officer approval"
+      - type: "audit"
+        log_level: "detailed"
+        include_metadata:
+          - "destination.country"
+          - "destination.ip"
+          - "agent.id"
+          - "user.id"
+
+  # Rule 4: Unencrypted Transmission (Article 32)
+  - id: "gdpr-rule-004"
+    name: "Require Encryption in Transit"
+    description: "Ensure personal data is encrypted during transmission"
+    enabled: true
+    conditions:
+      - field: "transmission.encrypted"
+        operator: "equals"
+        value: false
+      - field: "classification"
+        operator: "exists"
+      - field: "event.type"
+        operator: "in"
+        value: ["email", "upload", "network"]
+    actions:
+      - type: "alert"
+        severity: "high"
+        title: "GDPR Unencrypted Personal Data"
+        description: "Personal data transmitted without encryption"
+        metadata:
+          regulation: "GDPR Article 32(1)(a)"
+          violation: "Lack of encryption"
+      - type: "block"
+        message: "Unencrypted transmission of personal data is not allowed"
+      - type: "notify"
+        channel: "security"
+        recipients:
+          - "security@company.com"
+
+  # Rule 5: Data Minimization (Article 5(1)(c))
+  - id: "gdpr-rule-005"
+    name: "Excessive Personal Data Collection"
+    description: "Alert on potential excessive data collection"
+    enabled: true
+    conditions:
+      - field: "classification"
+        operator: "count_greater_than"
+        value: 5  # More than 5 different PII types
+      - field: "event.type"
+        operator: "equals"
+        value: "upload"
+    actions:
+      - type: "alert"
+        severity: "medium"
+        title: "GDPR Data Minimization Concern"
+        description: "Document contains excessive personal data types"
+        metadata:
+          regulation: "GDPR Article 5(1)(c)"
+          principle: "Data Minimization"
+      - type: "audit"
+        log_level: "detailed"
+
+  # Rule 6: Right to be Forgotten (Article 17)
+  - id: "gdpr-rule-006"
+    name: "Mark for Deletion Review"
+    description: "Track personal data for potential deletion requests"
+    enabled: true
+    conditions:
+      - field: "classification"
+        operator: "exists"
+      - field: "metadata.retention_required"
+        operator: "equals"
+        value: false
+    actions:
+      - type: "tag"
+        tags:
+          - "gdpr_subject_access"
+          - "deletion_candidate"
+      - type: "audit"
+        log_level: "summary"
+        metadata:
+          purpose: "Subject Access Request tracking"
+
+  # Rule 7: Breach Notification Threshold (Article 33)
+  - id: "gdpr-rule-007"
+    name: "Potential Data Breach Detection"
+    description: "Detect high-risk events requiring breach notification"
+    enabled: true
+    conditions:
+      - field: "classification.confidence"
+        operator: "greater_than"
+        value: 0.9
+      - field: "event.severity"
+        operator: "in"
+        value: ["high", "critical"]
+      - field: "blocked"
+        operator: "equals"
+        value: false  # Event was NOT blocked (potential breach)
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "GDPR Potential Data Breach"
+        description: "High-risk personal data incident - may require notification"
+        metadata:
+          regulation: "GDPR Article 33"
+          notification_window: "72 hours to supervisory authority"
+      - type: "escalate"
+        to:
+          - "dpo@company.com"
+          - "legal@company.com"
+          - "ciso@company.com"
+        priority: "urgent"
+      - type: "audit"
+        log_level: "forensic"
+        include_full_context: true
+
+  # Rule 8: Consent Verification
+  - id: "gdpr-rule-008"
+    name: "Verify Data Processing Consent"
+    description: "Check if consent exists for data processing"
+    enabled: false  # Enable if you have consent management system
+    conditions:
+      - field: "classification"
+        operator: "exists"
+      - field: "metadata.consent_verified"
+        operator: "not_exists"
+    actions:
+      - type: "alert"
+        severity: "medium"
+        title: "GDPR Consent Verification Required"
+        description: "Processing personal data without verified consent"
+        metadata:
+          regulation: "GDPR Article 6(1)(a) & Article 7"
+      - type: "tag"
+        tags:
+          - "consent_required"
+
+metadata:
+  template: true
+  template_version: "1.0"
+  last_updated: "2025-01-13"
+  maintainer: "DLP Team"
+  documentation: "https://gdpr.eu/"
+  customization_notes: |
+    To customize this template:
+    1. Update notification recipients (dpo@, compliance@, security@)
+    2. Adjust cross-border country list based on your approved destinations
+    3. Enable/disable rules based on your data processing activities
+    4. Set appropriate retention periods based on your legal requirements
+    5. Configure encryption requirements based on your security policies
+    6. Integrate with your consent management platform (Rule 8)
+
+  deployment_checklist:
+    - "✓ Appoint Data Protection Officer (DPO)"
+    - "✓ Update recipient email addresses"
+    - "✓ Configure quarantine storage location"
+    - "✓ Set up encryption for quarantine"
+    - "✓ Integrate with SIEM for audit logging"
+    - "✓ Test alert notifications"
+    - "✓ Document legal basis for data processing"
+    - "✓ Implement consent management (if required)"
+    - "✓ Train staff on GDPR requirements"
+    - "✓ Review and test every 6 months"

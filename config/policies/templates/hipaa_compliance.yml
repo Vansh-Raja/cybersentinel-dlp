@@ -1,0 +1,482 @@
+# HIPAA (Health Insurance Portability and Accountability Act) Compliance Policy
+# Privacy Rule (45 CFR Part 160 and Subparts A and E of Part 164)
+# Security Rule (45 CFR Part 160 and Subparts A and C of Part 164)
+#
+# This policy template helps healthcare organizations and covered entities
+# comply with HIPAA requirements for protecting Protected Health Information (PHI).
+#
+# Scope: All PHI as defined by HIPAA Privacy Rule
+# - Patient names, dates, phone numbers, email addresses
+# - Medical record numbers, health plan beneficiary numbers
+# - Account numbers, certificate/license numbers
+# - Device identifiers and serial numbers
+# - Web URLs, IP addresses, biometric identifiers
+# - Full-face photos and comparable images
+# - Any unique identifying number, characteristic, or code
+#
+# Deployment: Copy this file to /etc/cybersentinel/policies/ and customize as needed
+
+policy:
+  id: "hipaa-phi-protection-001"
+  name: "HIPAA Protected Health Information Protection"
+  description: "Detect, monitor, and protect PHI under HIPAA regulations"
+  version: "1.0"
+  enabled: true
+  priority: 10
+  compliance:
+    - "HIPAA"
+  regulations:
+    - "45 CFR §164.502 - Uses and Disclosures of PHI"
+    - "45 CFR §164.308 - Administrative Safeguards"
+    - "45 CFR §164.310 - Physical Safeguards"
+    - "45 CFR §164.312 - Technical Safeguards"
+    - "45 CFR §164.514 - De-identification of PHI"
+  severity: "critical"
+  tags:
+    - "hipaa"
+    - "healthcare"
+    - "phi"
+    - "privacy"
+
+rules:
+  # Rule 1: Detect Protected Health Information
+  - id: "hipaa-rule-001"
+    name: "Detect Protected Health Information (PHI)"
+    description: "Identify any PHI in transmissions or storage"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "in"
+        value:
+          - "medical_record"
+          - "health_insurance_id"
+          - "ssn"
+          - "medical_record_number"
+          - "patient_id"
+          - "prescription_number"
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "HIPAA PHI Detected"
+        description: "Protected Health Information detected in transmission"
+        metadata:
+          regulation: "45 CFR §164.502"
+          data_type: "PHI"
+      - type: "encrypt"
+        algorithm: "AES-256"
+        key_management: "hipaa_compliant_kms"
+      - type: "audit"
+        log_level: "detailed"
+        retention_days: 2555  # 7 years minimum for HIPAA
+        include_metadata:
+          - "user.id"
+          - "user.role"
+          - "access_purpose"
+          - "patient_id"
+          - "timestamp"
+      - type: "notify"
+        channel: "secure_email"
+        recipients:
+          - "privacy-officer@hospital.com"
+          - "hipaa-compliance@hospital.com"
+        encrypt_notification: true
+
+  # Rule 2: Minimum Necessary Standard (§164.502(b))
+  - id: "hipaa-rule-002"
+    name: "Minimum Necessary Rule"
+    description: "Detect potential violations of minimum necessary standard"
+    enabled: true
+    conditions:
+      - field: "classification"
+        operator: "count_greater_than"
+        value: 3  # More than 3 PHI elements may violate minimum necessary
+      - field: "access.type"
+        operator: "not_equals"
+        value: "treatment"  # Treatment disclosures exempt from minimum necessary
+    actions:
+      - type: "alert"
+        severity: "high"
+        title: "HIPAA Minimum Necessary Review Required"
+        description: "Transmission contains potentially excessive PHI"
+        metadata:
+          regulation: "45 CFR §164.502(b)"
+          principle: "Minimum Necessary"
+      - type: "flag_for_review"
+        reviewer_role: "privacy_officer"
+      - type: "audit"
+        log_level: "detailed"
+
+  # Rule 3: Unauthorized Access Detection
+  - id: "hipaa-rule-003"
+    name: "Detect Unauthorized PHI Access"
+    description: "Alert on PHI access by unauthorized personnel"
+    enabled: true
+    conditions:
+      - field: "user.role"
+        operator: "not_in"
+        value:
+          - "physician"
+          - "nurse"
+          - "medical_assistant"
+          - "billing"
+          - "authorized_staff"
+          - "admin"
+      - field: "classification.type"
+        operator: "in"
+        value:
+          - "medical_record"
+          - "health_insurance_id"
+          - "patient_id"
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "HIPAA Unauthorized PHI Access"
+        description: "PHI accessed by unauthorized user"
+        metadata:
+          regulation: "45 CFR §164.308(a)(3)"
+          violation: "Unauthorized Access"
+      - type: "block"
+        message: "Access denied - insufficient privileges for PHI"
+      - type: "audit"
+        log_level: "forensic"
+        include_full_context: true
+      - type: "escalate"
+        to:
+          - "security@hospital.com"
+          - "privacy-officer@hospital.com"
+        priority: "immediate"
+
+  # Rule 4: Unencrypted PHI (§164.312(a)(2)(iv))
+  - id: "hipaa-rule-004"
+    name: "Require PHI Encryption"
+    description: "Block unencrypted PHI transmissions"
+    enabled: true
+    conditions:
+      - field: "transmission.encrypted"
+        operator: "equals"
+        value: false
+      - field: "classification"
+        operator: "exists"
+      - field: "event.type"
+        operator: "in"
+        value: ["email", "upload", "network", "usb"]
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "HIPAA Unencrypted PHI Transmission"
+        description: "PHI transmitted without encryption - Security Rule violation"
+        metadata:
+          regulation: "45 CFR §164.312(a)(2)(iv)"
+          safeguard: "Encryption"
+      - type: "block"
+        message: "Unencrypted PHI transmission blocked - encryption required"
+      - type: "quarantine"
+        location: "/quarantine/hipaa/unencrypted"
+        notify_sender: true
+      - type: "notify"
+        channel: "urgent"
+        recipients:
+          - "security@hospital.com"
+
+  # Rule 5: Breach Notification Assessment (§164.402)
+  - id: "hipaa-rule-005"
+    name: "Potential PHI Breach Detection"
+    description: "Detect incidents requiring breach notification assessment"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "in"
+        value:
+          - "medical_record"
+          - "health_insurance_id"
+          - "patient_id"
+      - field: "blocked"
+        operator: "equals"
+        value: false  # PHI was not blocked (potential breach)
+      - field: "destination.internal"
+        operator: "equals"
+        value: false  # External destination
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "HIPAA Potential Breach - Notification Required"
+        description: "PHI disclosure to external party - breach risk assessment needed"
+        metadata:
+          regulation: "45 CFR §164.402-414"
+          notification_window: "60 days to affected individuals"
+          requirements:
+            - "Notify affected individuals"
+            - "Notify HHS (if >500 individuals)"
+            - "Notify media (if >500 individuals in jurisdiction)"
+      - type: "escalate"
+        to:
+          - "privacy-officer@hospital.com"
+          - "legal@hospital.com"
+          - "ciso@hospital.com"
+          - "compliance@hospital.com"
+        priority: "urgent"
+      - type: "create_incident"
+        incident_type: "potential_phi_breach"
+        severity: "critical"
+        sla_hours: 1  # Begin assessment within 1 hour
+      - type: "audit"
+        log_level: "forensic"
+        preserve_evidence: true
+        include_full_context: true
+
+  # Rule 6: De-identification Verification (§164.514)
+  - id: "hipaa-rule-006"
+    name: "Verify PHI De-identification"
+    description: "Check that de-identified data truly lacks PHI"
+    enabled: true
+    conditions:
+      - field: "metadata.deidentified"
+        operator: "equals"
+        value: true
+      - field: "classification"
+        operator: "exists"  # But still contains identifiers
+    actions:
+      - type: "alert"
+        severity: "high"
+        title: "HIPAA De-identification Failed"
+        description: "Data marked as de-identified still contains PHI"
+        metadata:
+          regulation: "45 CFR §164.514(b)"
+          issue: "Incomplete de-identification"
+      - type: "block"
+        message: "De-identification incomplete - PHI detected"
+      - type: "flag_for_review"
+        reviewer_role: "privacy_officer"
+
+  # Rule 7: Business Associate Data Sharing (§164.502(e))
+  - id: "hipaa-rule-007"
+    name: "Business Associate Agreement Required"
+    description: "Ensure BAA exists for PHI sharing with business associates"
+    enabled: true
+    conditions:
+      - field: "classification"
+        operator: "exists"
+      - field: "destination.entity_type"
+        operator: "equals"
+        value: "business_associate"
+      - field: "destination.baa_verified"
+        operator: "not_equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "HIPAA BAA Required"
+        description: "PHI sharing with business associate requires valid BAA"
+        metadata:
+          regulation: "45 CFR §164.502(e)"
+          requirement: "Business Associate Agreement"
+      - type: "block"
+        message: "Business Associate Agreement not found - PHI sharing blocked"
+      - type: "notify"
+        channel: "compliance"
+        recipients:
+          - "privacy-officer@hospital.com"
+          - "legal@hospital.com"
+
+  # Rule 8: Audit Trail Requirements (§164.312(b))
+  - id: "hipaa-rule-008"
+    name: "Comprehensive PHI Audit Logging"
+    description: "Ensure all PHI access is logged per Security Rule"
+    enabled: true
+    conditions:
+      - field: "classification"
+        operator: "exists"
+      - field: "event.type"
+        operator: "in"
+        value: ["access", "view", "download", "print", "copy"]
+    actions:
+      - type: "audit"
+        log_level: "detailed"
+        retention_days: 2555  # 7 years
+        include_metadata:
+          - "user.id"
+          - "user.name"
+          - "user.role"
+          - "user.department"
+          - "patient.id"
+          - "access.type"
+          - "access.purpose"
+          - "access.timestamp"
+          - "access.location"
+          - "access.device_id"
+        log_format: "hipaa_compliant"
+      - type: "tag"
+        tags:
+          - "phi_access"
+          - "audit_required"
+
+  # Rule 9: Psychotherapy Notes Protection (§164.508(a)(2))
+  - id: "hipaa-rule-009"
+    name: "Protect Psychotherapy Notes"
+    description: "Extra protection for psychotherapy notes (requires authorization)"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "equals"
+        value: "psychotherapy_notes"
+      - field: "authorization.psychotherapy_notes"
+        operator: "not_equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "HIPAA Psychotherapy Notes - Authorization Required"
+        description: "Psychotherapy notes require specific authorization"
+        metadata:
+          regulation: "45 CFR §164.508(a)(2)"
+          requirement: "Patient authorization for psychotherapy notes"
+      - type: "block"
+        message: "Psychotherapy notes disclosure requires patient authorization"
+      - type: "escalate"
+        to:
+          - "privacy-officer@hospital.com"
+
+  # Rule 10: Marketing Uses (§164.508(a)(3))
+  - id: "hipaa-rule-010"
+    name: "Prevent Unauthorized Marketing"
+    description: "Block PHI use for marketing without authorization"
+    enabled: true
+    conditions:
+      - field: "classification"
+        operator: "exists"
+      - field: "purpose"
+        operator: "equals"
+        value: "marketing"
+      - field: "authorization.marketing"
+        operator: "not_equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "HIPAA Unauthorized Marketing Use"
+        description: "PHI cannot be used for marketing without authorization"
+        metadata:
+          regulation: "45 CFR §164.508(a)(3)"
+          violation: "Marketing without authorization"
+      - type: "block"
+        message: "PHI use for marketing requires patient authorization"
+
+  # Rule 11: Right of Access Compliance (§164.524)
+  - id: "hipaa-rule-011"
+    name: "Track Patient Access Requests"
+    description: "Monitor compliance with patient access requests"
+    enabled: true
+    conditions:
+      - field: "request.type"
+        operator: "equals"
+        value: "patient_access_request"
+    actions:
+      - type: "track"
+        tracking_id: "patient_access_request"
+        sla_days: 30  # Must respond within 30 days
+      - type: "notify"
+        channel: "task"
+        recipients:
+          - "medical-records@hospital.com"
+          - "privacy-officer@hospital.com"
+      - type: "audit"
+        log_level: "detailed"
+        metadata:
+          regulation: "45 CFR §164.524"
+          deadline: "30_days_from_request"
+
+  # Rule 12: Research Use Compliance (§164.512(i))
+  - id: "hipaa-rule-012"
+    name: "Research Use Authorization"
+    description: "Ensure proper authorization for research use of PHI"
+    enabled: true
+    conditions:
+      - field: "classification"
+        operator: "exists"
+      - field: "purpose"
+        operator: "equals"
+        value: "research"
+      - field: "authorization.research_approved"
+        operator: "not_equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "high"
+        title: "HIPAA Research Authorization Required"
+        description: "PHI use for research requires IRB approval or authorization"
+        metadata:
+          regulation: "45 CFR §164.512(i)"
+          requirements:
+            - "IRB approval or waiver"
+            - "Patient authorization"
+            - "De-identification"
+      - type: "block"
+        message: "Research use requires IRB approval or patient authorization"
+
+metadata:
+  template: true
+  template_version: "1.0"
+  last_updated: "2025-01-13"
+  maintainer: "Healthcare IT Security Team"
+  documentation: "https://www.hhs.gov/hipaa/"
+
+  customization_notes: |
+    To customize this template for your organization:
+    1. Update recipient email addresses (privacy-officer@, security@, etc.)
+    2. Add your specific user roles to authorized access lists
+    3. Configure encryption settings to match your security policies
+    4. Set appropriate retention periods (minimum 7 years for HIPAA)
+    5. Integrate with your Business Associate Agreement tracking system
+    6. Configure audit log format to match your SIEM requirements
+    7. Set up escalation workflows for breach notifications
+    8. Enable/disable rules based on your healthcare operations
+    9. Add custom PHI classifiers for your organization's data types
+    10. Test thoroughly before production deployment
+
+  deployment_checklist:
+    - "✓ Appoint Privacy Officer and Security Officer"
+    - "✓ Update recipient email addresses"
+    - "✓ Configure encryption (AES-256 minimum)"
+    - "✓ Set up quarantine storage with access controls"
+    - "✓ Integrate with SIEM for audit logging"
+    - "✓ Configure Business Associate Agreement tracking"
+    - "✓ Test breach notification workflow"
+    - "✓ Train workforce on PHI handling"
+    - "✓ Implement Incident Response Plan"
+    - "✓ Document policies and procedures"
+    - "✓ Conduct Risk Analysis"
+    - "✓ Review and update annually"
+
+  covered_entities:
+    - "Healthcare Providers (doctors, clinics, hospitals, etc.)"
+    - "Health Plans (insurance companies, HMOs, etc.)"
+    - "Healthcare Clearinghouses"
+    - "Business Associates of covered entities"
+
+  phi_18_identifiers:
+    - "Names"
+    - "Geographic subdivisions smaller than state"
+    - "Dates (except year) related to individual"
+    - "Telephone numbers"
+    - "Fax numbers"
+    - "Email addresses"
+    - "Social security numbers"
+    - "Medical record numbers"
+    - "Health plan beneficiary numbers"
+    - "Account numbers"
+    - "Certificate/license numbers"
+    - "Vehicle identifiers and serial numbers"
+    - "Device identifiers and serial numbers"
+    - "Web URLs"
+    - "IP addresses"
+    - "Biometric identifiers"
+    - "Full-face photographs"
+    - "Any other unique identifying number/code"
+
+  penalties:
+    tier1: "$100-$50,000 per violation (unknowing)"
+    tier2: "$1,000-$50,000 per violation (reasonable cause)"
+    tier3: "$10,000-$50,000 per violation (willful neglect, corrected)"
+    tier4: "$50,000 per violation (willful neglect, not corrected)"
+    criminal: "Up to $250,000 and 10 years imprisonment"
+    annual_max: "$1.5 million per violation type per year"

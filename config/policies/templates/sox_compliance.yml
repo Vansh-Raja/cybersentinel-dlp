@@ -1,0 +1,526 @@
+# SOX (Sarbanes-Oxley Act) Compliance Policy
+# Sections 302, 404, 802, 906 - Financial Data and Records Protection
+#
+# This policy template helps publicly-traded companies comply with SOX
+# requirements for protecting financial data and maintaining audit trails.
+#
+# Scope: Financial records, reports, and sensitive corporate information
+# - Financial statements and reports
+# - Accounting records
+# - Audit work papers
+# - Corporate communications
+# - Executive financial data
+#
+# Deployment: Copy this file to /etc/cybersentinel/policies/ and customize as needed
+
+policy:
+  id: "sox-financial-data-001"
+  name: "SOX Financial Data Protection"
+  description: "Protect financial records and maintain audit trails per SOX requirements"
+  version: "1.0"
+  enabled: true
+  priority: 10
+  compliance:
+    - "SOX"
+  regulations:
+    - "SOX Section 302 - Corporate Responsibility for Financial Reports"
+    - "SOX Section 404 - Management Assessment of Internal Controls"
+    - "SOX Section 802 - Criminal Penalties for Document Destruction"
+    - "SOX Section 906 - Corporate Responsibility for Financial Reports"
+  severity: "critical"
+  tags:
+    - "sox"
+    - "financial"
+    - "accounting"
+    - "audit"
+
+rules:
+  # Rule 1: Protect Financial Statements
+  - id: "sox-rule-001"
+    name: "Protect Financial Statements and Reports"
+    description: "Monitor and protect all financial statements and quarterly reports"
+    enabled: true
+    conditions:
+      - field: "file.type"
+        operator: "in"
+        value:
+          - "financial_statement"
+          - "quarterly_report"
+          - "annual_report"
+          - "10-K"
+          - "10-Q"
+          - "8-K"
+      - field: "classification.sensitivity"
+        operator: "in"
+        value: ["confidential", "restricted"]
+    actions:
+      - type: "alert"
+        severity: "high"
+        title: "SOX Financial Report Access"
+        description: "Financial statement accessed or transmitted"
+        metadata:
+          regulation: "SOX Section 302"
+          requirement: "CEO/CFO certification of financial reports"
+      - type: "encrypt"
+        algorithm: "AES-256"
+        key_management: "corporate_kms"
+      - type: "audit"
+        log_level: "detailed"
+        retention_days: 2555  # 7 years minimum for SOX
+        tamper_protection: true
+        include_metadata:
+          - "user.id"
+          - "user.role"
+          - "user.department"
+          - "document.type"
+          - "access.type"
+          - "access.purpose"
+          - "timestamp"
+      - type: "notify"
+        channel: "compliance"
+        recipients:
+          - "cfo@company.com"
+          - "compliance@company.com"
+          - "audit-committee@company.com"
+
+  # Rule 2: Prevent Document Destruction (Section 802)
+  - id: "sox-rule-002"
+    name: "Prevent Improper Document Destruction"
+    description: "Block deletion of records during litigation or investigation"
+    enabled: true
+    conditions:
+      - field: "file.type"
+        operator: "in"
+        value:
+          - "financial_record"
+          - "audit_workpaper"
+          - "accounting_record"
+          - "correspondence"
+      - field: "event.action"
+        operator: "equals"
+        value: "delete"
+      - field: "litigation.hold_active"
+        operator: "equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "SOX Document Destruction Attempt - BLOCKED"
+        description: "Attempt to delete records under litigation hold"
+        metadata:
+          regulation: "SOX Section 802"
+          penalty: "Up to 20 years imprisonment"
+          violation: "Document destruction during investigation"
+      - type: "block"
+        message: "Document deletion blocked - active litigation hold"
+      - type: "preserve"
+        location: "/preservation/litigation-hold"
+        immutable: true
+      - type: "escalate"
+        to:
+          - "legal@company.com"
+          - "ciso@company.com"
+          - "audit-committee@company.com"
+        priority: "critical"
+      - type: "audit"
+        log_level: "forensic"
+        preserve_evidence: true
+
+  # Rule 3: Audit Trail Requirements (Section 404)
+  - id: "sox-rule-003"
+    name: "Maintain Audit Trails for Financial Data"
+    description: "Comprehensive logging of all financial data access"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "in"
+        value:
+          - "financial_data"
+          - "accounting_data"
+          - "revenue_data"
+          - "expense_data"
+      - field: "event.type"
+        operator: "in"
+        value: ["access", "modify", "create", "delete", "export"]
+    actions:
+      - type: "audit"
+        log_level: "detailed"
+        retention_days: 2555  # 7 years
+        tamper_protection: true
+        digital_signature: true
+        include_metadata:
+          - "user.id"
+          - "user.name"
+          - "user.role"
+          - "user.department"
+          - "manager.id"
+          - "action.type"
+          - "action.timestamp"
+          - "data.before_value"  # For modifications
+          - "data.after_value"   # For modifications
+          - "access.purpose"
+          - "approval.id"
+        metadata:
+          regulation: "SOX Section 404"
+          control_type: "IT General Controls - Audit Logging"
+      - type: "tag"
+        tags:
+          - "sox_audit"
+          - "financial_access"
+
+  # Rule 4: Segregation of Duties (Section 404)
+  - id: "sox-rule-004"
+    name: "Enforce Segregation of Duties"
+    description: "Detect violations of segregation of duties controls"
+    enabled: true
+    conditions:
+      - field: "user.conflicting_roles"
+        operator: "exists"  # User has incompatible roles
+      - field: "classification.type"
+        operator: "equals"
+        value: "financial_data"
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "SOX Segregation of Duties Violation"
+        description: "User with conflicting roles accessing financial data"
+        metadata:
+          regulation: "SOX Section 404"
+          control: "Segregation of Duties"
+          examples:
+            - "Same person cannot initiate and approve"
+            - "Same person cannot record and reconcile"
+            - "Same person cannot custody assets and maintain records"
+      - type: "block"
+        message: "Access denied - role conflict violates segregation of duties"
+      - type: "notify"
+        channel: "compliance"
+        recipients:
+          - "internal-audit@company.com"
+          - "compliance@company.com"
+
+  # Rule 5: Change Management Controls
+  - id: "sox-rule-005"
+    name: "Financial System Change Management"
+    description: "Monitor changes to financial systems and applications"
+    enabled: true
+    conditions:
+      - field: "system.type"
+        operator: "in"
+        value:
+          - "financial_system"
+          - "accounting_system"
+          - "erp"
+          - "general_ledger"
+      - field: "event.type"
+        operator: "in"
+        value: ["system_change", "configuration_change", "code_change"]
+      - field: "change.approved"
+        operator: "not_equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "SOX Unapproved Financial System Change"
+        description: "Change to financial system without proper approval"
+        metadata:
+          regulation: "SOX Section 404"
+          control: "Change Management"
+      - type: "block"
+        message: "Financial system changes require change control approval"
+      - type: "create_ticket"
+        system: "change_management"
+        priority: "high"
+
+  # Rule 6: Access Control Review
+  - id: "sox-rule-006"
+    name: "Quarterly Access Review"
+    description: "Track access that requires quarterly certification"
+    enabled: true
+    conditions:
+      - field: "user.access_type"
+        operator: "equals"
+        value: "privileged"
+      - field: "system.type"
+        operator: "in"
+        value: ["financial_system", "accounting_system"]
+      - field: "user.last_access_review"
+        operator: "days_since_greater_than"
+        value: 90  # 90 days = quarterly
+    actions:
+      - type: "alert"
+        severity: "high"
+        title: "SOX Access Review Required"
+        description: "Privileged financial system access requires quarterly review"
+        metadata:
+          regulation: "SOX Section 404"
+          control: "Access Control Review"
+          frequency: "Quarterly"
+      - type: "flag_for_review"
+        review_type: "access_certification"
+        reviewer_role: "manager"
+        due_date: "30_days"
+      - type: "notify"
+        channel: "task"
+        recipients:
+          - "{{user.manager_email}}"
+          - "access-governance@company.com"
+
+  # Rule 7: Insider Trading Risk
+  - id: "sox-rule-007"
+    name: "Monitor Material Non-Public Information"
+    description: "Detect potential insider trading risk"
+    enabled: true
+    conditions:
+      - field: "classification.type"
+        operator: "in"
+        value:
+          - "material_nonpublic_information"
+          - "mnpi"
+          - "earnings_data"
+          - "merger_acquisition"
+      - field: "user.can_trade_stock"
+        operator: "equals"
+        value: true
+      - field: "quiet_period.active"
+        operator: "equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "SOX Insider Trading Risk"
+        description: "Access to MNPI during trading restriction period"
+        metadata:
+          regulation: "SOX Section 306"
+          risk: "Insider Trading"
+      - type: "flag"
+        flag_type: "insider_trading_monitoring"
+      - type: "notify"
+        channel: "legal"
+        recipients:
+          - "legal@company.com"
+          - "compliance@company.com"
+          - "insider-trading-monitoring@company.com"
+      - type: "audit"
+        log_level: "forensic"
+
+  # Rule 8: Whistleblower Protection (Section 806)
+  - id: "sox-rule-008"
+    name: "Protect Whistleblower Communications"
+    description: "Ensure confidentiality of whistleblower reports"
+    enabled: true
+    conditions:
+      - field: "communication.type"
+        operator: "equals"
+        value: "whistleblower_report"
+      - field: "destination.role"
+        operator: "not_in"
+        value: ["audit_committee", "compliance_officer", "ethics_hotline"]
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "SOX Whistleblower Communication Misdirected"
+        description: "Whistleblower report not sent to proper channel"
+        metadata:
+          regulation: "SOX Section 806"
+          requirement: "Whistleblower Protection"
+      - type: "redirect"
+        to: "ethics-hotline@company.com"
+        preserve_anonymity: true
+      - type: "encrypt"
+        algorithm: "AES-256"
+        protect_identity: true
+
+  # Rule 9: External Auditor Independence
+  - id: "sox-rule-009"
+    name: "Monitor Auditor Independence"
+    description: "Track external auditor access to ensure independence"
+    enabled: true
+    conditions:
+      - field: "user.type"
+        operator: "equals"
+        value: "external_auditor"
+      - field: "access.type"
+        operator: "in"
+        value: ["modify", "delete", "create"]
+      - field: "system.type"
+        operator: "equals"
+        value: "financial_system"
+    actions:
+      - type: "alert"
+        severity: "high"
+        title: "SOX Auditor Independence Concern"
+        description: "External auditor performing non-audit function"
+        metadata:
+          regulation: "SOX Section 201"
+          requirement: "Auditor Independence"
+          prohibited_services:
+            - "Bookkeeping"
+            - "Financial system design"
+            - "Management functions"
+      - type: "block"
+        message: "External auditors prohibited from performing management functions"
+      - type: "notify"
+        channel: "audit_committee"
+        recipients:
+          - "audit-committee@company.com"
+
+  # Rule 10: Retention Policy Compliance (Section 802)
+  - id: "sox-rule-010"
+    name: "Document Retention Compliance"
+    description: "Enforce 7-year retention for audit records"
+    enabled: true
+    conditions:
+      - field: "file.type"
+        operator: "in"
+        value:
+          - "audit_workpaper"
+          - "financial_record"
+          - "accounting_record"
+      - field: "file.age_years"
+        operator: "less_than"
+        value: 7
+      - field: "event.action"
+        operator: "equals"
+        value: "delete"
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "SOX Premature Record Deletion"
+        description: "Attempt to delete records before 7-year retention period"
+        metadata:
+          regulation: "SOX Section 802"
+          requirement: "7-year retention for audit records"
+      - type: "block"
+        message: "Records must be retained for 7 years per SOX Section 802"
+      - type: "notify"
+        channel: "records_management"
+        recipients:
+          - "records-management@company.com"
+          - "legal@company.com"
+
+  # Rule 11: Executive Certification (Section 302)
+  - id: "sox-rule-011"
+    name: "Track Executive Certifications"
+    description: "Monitor financial reports requiring CEO/CFO certification"
+    enabled: true
+    conditions:
+      - field: "file.type"
+        operator: "in"
+        value: ["10-K", "10-Q", "quarterly_report", "annual_report"]
+      - field: "file.status"
+        operator: "equals"
+        value: "ready_for_filing"
+      - field: "certification.ceo_signed"
+        operator: "not_equals"
+        value: true
+    actions:
+      - type: "alert"
+        severity: "critical"
+        title: "SOX Certification Required"
+        description: "Financial report requires CEO/CFO certification"
+        metadata:
+          regulation: "SOX Section 302"
+          requirement: "Executive certification of internal controls"
+      - type: "block_filing"
+        message: "CEO/CFO certification required before filing"
+      - type: "notify"
+        channel: "executive"
+        recipients:
+          - "ceo@company.com"
+          - "cfo@company.com"
+          - "controller@company.com"
+
+  # Rule 12: IT General Controls (ITGC)
+  - id: "sox-rule-012"
+    name: "IT General Controls Monitoring"
+    description: "Monitor IT controls supporting financial reporting"
+    enabled: true
+    conditions:
+      - field: "system.supports_financial_reporting"
+        operator: "equals"
+        value: true
+      - field: "control.type"
+        operator: "in"
+        value:
+          - "access_control"
+          - "change_management"
+          - "backup_recovery"
+          - "security"
+    actions:
+      - type: "monitor"
+        control_framework: "ITGC"
+      - type: "audit"
+        log_level: "detailed"
+        retention_days: 2555
+        metadata:
+          control_category: "IT General Controls"
+          regulation: "SOX Section 404"
+
+metadata:
+  template: true
+  template_version: "1.0"
+  last_updated: "2025-01-13"
+  maintainer: "Corporate Compliance Team"
+  documentation: "https://www.sec.gov/spotlight/sarbanes-oxley.htm"
+
+  customization_notes: |
+    To customize this template for your organization:
+    1. Update recipient email addresses (CFO, audit committee, etc.)
+    2. Define your financial systems and applications
+    3. Configure segregation of duties rules based on your org structure
+    4. Set up litigation hold tracking integration
+    5. Configure change management system integration
+    6. Define privileged access roles
+    7. Set up quarterly access review workflow
+    8. Configure MNPI classification rules
+    9. Integrate with ethics hotline
+    10. Test thoroughly with audit team
+
+  deployment_checklist:
+    - "✓ Map all financial systems and applications"
+    - "✓ Define segregation of duties matrix"
+    - "✓ Configure audit log retention (7 years minimum)"
+    - "✓ Set up tamper-proof audit logging"
+    - "✓ Implement digital signatures for audit logs"
+    - "✓ Configure access review workflow"
+    - "✓ Integrate with change management system"
+    - "✓ Set up litigation hold tracking"
+    - "✓ Configure whistleblower reporting channel"
+    - "✓ Train financial staff on SOX requirements"
+    - "✓ Coordinate with external auditors"
+    - "✓ Schedule annual SOX 404 assessment"
+
+  affected_companies:
+    - "All publicly-traded companies in the US"
+    - "Foreign companies with US-traded securities"
+    - "Subsidiaries of public companies"
+    - "Companies preparing for IPO"
+
+  key_sections:
+    section302: "CEO/CFO certification of financial reports and internal controls"
+    section401: "Enhanced financial disclosures"
+    section404: "Management assessment of internal controls"
+    section409: "Real-time disclosure of material changes"
+    section802: "Criminal penalties for document destruction (up to 20 years)"
+    section806: "Whistleblower protection"
+    section906: "Criminal penalties for false certification (up to 20 years)"
+
+  penalties:
+    section802_criminal: "Fines and/or up to 20 years imprisonment"
+    section906_criminal: "Up to $5 million fine and 20 years imprisonment"
+    sec_civil_penalties: "Vary based on violation"
+    restatement_costs: "Average $9.8 million per restatement"
+    audit_fees: "Increased audit costs"
+    shareholder_lawsuits: "Class action litigation risk"
+    delisting: "Potential stock exchange delisting"
+
+  common_controls:
+    - "Access controls and user authentication"
+    - "Change management procedures"
+    - "Segregation of duties"
+    - "Data backup and recovery"
+    - "Audit logging and monitoring"
+    - "Incident response procedures"
+    - "Vendor management"
+    - "Business continuity planning"
