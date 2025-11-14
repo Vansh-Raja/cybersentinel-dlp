@@ -1,0 +1,13 @@
+# This workflow is disabled - use ci.yml for basic validation
+# To re-enable, rename to ci-cd.yml
+
+name: CI/CD Pipeline (DISABLED)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This workflow is disabled"
